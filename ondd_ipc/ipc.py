@@ -19,7 +19,7 @@ from contextlib import contextmanager
 from bottle import request
 from bottle_utils.html import yesno
 
-OUT_ENCODING = 'ascii'
+OUT_ENCODING = 'utf8'
 IN_ENCODING = 'utf8'
 
 KU_BAND = 'k'
@@ -70,7 +70,7 @@ def read(sock, buffsize=2048):
     :param buffsize:    size of the buffer in bytes (2048 by default)
     """
     idata = data = sock.recv(buffsize)
-    while idata and '\0' not in idata:
+    while idata and b'\0' not in idata:
         idata = sock.recv(buffsize)
         data += idata
     return data[:-1].decode(IN_ENCODING)
@@ -82,7 +82,7 @@ def parse(data):
     :param data:    XML string
     :returns:       root node object
     """
-    return ET.fromstring(data)
+    return ET.fromstring(data.encode('utf8'))
 
 
 def send(payload):
