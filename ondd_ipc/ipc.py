@@ -60,6 +60,7 @@ def ping():
         with open_socket():
             return True
     except (socket.error, socket.timeout):
+        logging.debug('Could not connect to ONDD socket.')
         return False
 
 
@@ -100,10 +101,8 @@ def send(payload):
 
     try:
         with open_socket() as sock:
-            logging.debug('ONDD: sending payload: %s', payload)
             sock.send(payload)
             data = read(sock)
-            logging.debug('ONDD: received data: %s', data)
     except (socket.error, socket.timeout):
         return None
     else:
@@ -183,7 +182,6 @@ def get_file_list():
     try:
         root = send(payload)
     except ET.ParseError:
-        logging.error('ONDD: Could not parse XML data')
         return []
 
     if root is None:
@@ -225,7 +223,6 @@ def get_transfers():
     try:
         root = send(payload)
     except ET.ParseError:
-        logging.error('ONDD: Could not parse XML data')
         return []
 
     if root is None:
@@ -302,8 +299,8 @@ def set_settings(frequency, symbolrate, delivery='dvb-s', modulation='qpsk',
     payload = xml_put_path('/settings', kw2xml(**locals()))
     resp = send(payload)
     if resp is None:
+        logging.error('Bad response while setting ONDD settings.')
         return ONDD_BAD_RESPONSE_CODE
 
     resp_code = resp.get('code')
-    logging.debug('ONDD: received response code %s', resp_code)
     return resp_code
