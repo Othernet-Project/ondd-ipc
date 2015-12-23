@@ -16,7 +16,7 @@ import logging
 import xml.etree.ElementTree as ET
 from contextlib import contextmanager
 
-from .utils import v2pol, kw2xml
+from .utils import v2pol, kw2xml, xml2dict
 
 OUT_ENCODING = 'utf8'
 IN_ENCODING = 'utf8'
@@ -239,6 +239,18 @@ class ONDDClient(object):
             resp_code = resp.get('code')
         return resp_code
 
+    def get_events(self):
+        """Get ONDD events """
+        payload = xml_get_path('/events')
+        root = self.query(payload)
+        if root is None:
+            return []
+
+        events = root.find('events')
+        if events is not None:
+            return [xml2dict(e) for e in events]
+        else:
+            return []
 
     def query(self, payload):
         data = send(self.socket_path, payload)

@@ -26,6 +26,18 @@ def kw2xml(**kwargs):
     return xml
 
 
+def xml2dict(xml):
+    """
+    Convert an simple xml node to a dict
+
+    This function only converts the top level children of the given nod
+    """
+    d = dict()
+    for node in xml:
+        d[node.tag] = node.text
+    return d
+
+
 def v2pol(volts):
     if volts == '13':
         return 'v'
