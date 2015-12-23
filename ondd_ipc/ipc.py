@@ -16,97 +16,13 @@ import logging
 import xml.etree.ElementTree as ET
 from contextlib import contextmanager
 
-from bottle import request
-from bottle_utils.html import yesno
+from .utils import v2pol, kw2xml
 
 OUT_ENCODING = 'utf8'
 IN_ENCODING = 'utf8'
 
-KU_BAND = 'k'
-C_BAND = 'c'
-UNIVERSAL = 'u'
-
-C_OFF = 5150  # Frequency offset for C band
-NA_KU_OFF = 10750  # Frequency offset for North America Ku
-UN_LO_OFF = 9750  # Low band offset
-UN_HI_OFF = 10600  # High band offset
-UN_HI_SW = 11700  # Transponder frequency at which we switch to high band
-
 ONDD_BAD_RESPONSE_CODE = '400'
 ONDD_SOCKET_TIMEOUT = 20.0
-
-
-def connect(path):
-    sock = socket.socket(socket.AF_UNIX)
-    sock.settimeout(ONDD_SOCKET_TIMEOUT)
-    sock.connect(path)
-    return sock
-
-
-@contextmanager
-def open_socket():
-    sock = connect(request.app.config['ondd.socket'])
-    try:
-        yield sock
-    finally:
-        # Permanently close this socket
-        sock.shutdown(socket.SHUT_RDWR)
-        sock.close()
-
-
-def ping():
-    """ Check if ondd endpoint is active."""
-    try:
-        with open_socket():
-            return True
-    except (socket.error, socket.timeout):
-        logging.debug('Could not connect to ONDD socket.')
-        return False
-
-
-def read(sock, buffsize=2048):
-    """ Read the data from a socket until exhausted or NULL byte
-
-    :param sock:        socket object
-    :param buffsize:    size of the buffer in bytes (2048 by default)
-    """
-    idata = data = sock.recv(buffsize)
-    while idata and b'\0' not in idata:
-        idata = sock.recv(buffsize)
-        data += idata
-    return data[:-1].decode(IN_ENCODING)
-
-
-def parse(data):
-    """ Parse incoming XML into Etree object
-
-    :param data:    XML string
-    :returns:       root node object
-    """
-    return ET.fromstring(data.encode('utf8'))
-
-
-def send(payload):
-    """ Connect to socket configured in the config file
-
-    According to ONDD API, payload must be terminated by NULL byte. If the
-    supplied payload isn't terminated by NULL byte, one will automatically be
-    appended to the end.
-
-    :param payload:     the XML payload to send down the pipe
-    :returns:           response data
-    """
-    if not payload[-1] == '\0':
-        payload = payload.encode(OUT_ENCODING) + '\0'
-
-    try:
-        with open_socket() as sock:
-            sock.send(payload)
-            data = read(sock)
-    except (socket.error, socket.timeout):
-        return None
-    else:
-        return parse(data)
 
 
 def xml_get_path(path):
@@ -126,181 +42,219 @@ def xml_put_path(path, subtree=''):
     return '<put uri="%s">%s</put>' % (path, subtree)
 
 
-def kw2xml(**kwargs):
-    """ Convert any keyword parameters to XML
-
-    This function does not guarantee the order of the tags.
-
-    Example::
-
-        >>> kw2xml(foo='bar', bar='baz', baz=1)
-        '<foo>bar</foo><bar>baz</bar><baz>1</baz>'
-
-    """
-    xml = ''
-    for k, v in kwargs.items():
-        xml += '<%(key)s>%(val)s</%(key)s>' % dict(key=k, val=v)
-    return xml
-
-
-def v2pol(volts):
-    if volts == '13':
-        return 'v'
-    elif volts == '18':
-        return 'h'
-    return '0'
-
-
-def get_status():
-    """ Get ONDD status """
-    payload = xml_get_path('/status')
-    root = send(payload)
-    if root is None:
-        return {
-            'has_lock': False,
-            'signal': 0,
-            'snr': 0.0,
-            'streams': []
-        }
-
-    tuner = root.find('tuner')
-    streams = root.find('streams')
-    return {
-        'has_lock': tuner.find('lock').text == 'yes',
-        'signal': int(tuner.find('signal').text),
-        'snr': float(tuner.find('snr').text),
-        'streams': [
-            {'id': s.find('ident').text,
-             'bitrate': int(s.find('bitrate').text)}
-            for s in streams]
-    }
-
-
-def get_file_list():
-    """ Get ONDD file download list """
-    payload = xml_get_path('/signaling/')
+def get_text(root, xpath, default=''):
     try:
-        root = send(payload)
-    except ET.ParseError:
-        return []
+        return root.find(xpath).text
+    except AttributeError:
+        return default
 
-    if root is None:
-        return []
 
-    out = []
-    streams = root.find('streams')
-    for s in streams:
-        files = s.find('files')
-        for f in files:
-            out.append({
-                'path': f.find('path').text,
-                'size': int(f.find('size').text)
-            })
-    return out
+def prepare_socket(socket_path):
+    sock = socket.socket(socket.AF_UNIX)
+    sock.settimeout(ONDD_SOCKET_TIMEOUT)
+    sock.connect(socket_path)
+    return sock
+
+
+@contextmanager
+def connect(socket_path):
+    sock = prepare_socket(socket_path)
+    try:
+        yield sock
+    finally:
+        # Permanently close this socket
+        sock.shutdown(socket.SHUT_RDWR)
+        sock.close()
+
+
+def read(sock, buffsize=2048):
+    """
+    Read the data from a socket until exhausted or NULL byte
+
+    :param sock:        socket object
+    :param buffsize:    size of the buffer in bytes (2048 by default)
+    """
+    idata = data = sock.recv(buffsize)
+    while idata and b'\0' not in idata:
+        idata = sock.recv(buffsize)
+        data += idata
+    return data[:-1].decode(IN_ENCODING)
+
+
+def send(socket_path, payload):
+    """
+    Connect to UNIX socket at `socket_path`, send the payload
+    and return the response.
+
+    According to ONDD API, payload must be terminated by NULL byte. If the
+    supplied payload isn't terminated by NULL byte, one will automatically be
+    appended to the end.
+
+    :socket_path:       the UNIX socket to connect to
+    :param payload:     the XML payload to send down the pipe
+    :returns:           response data
+    """
+    if not payload[-1] == '\0':
+        payload += '\0'
+
+    payload = payload.encode(OUT_ENCODING)
+
+    try:
+        with connect(socket_path) as sock:
+            sock.send(payload)
+            data = read(sock)
+    except (socket.error, socket.timeout):
+        return None
+    else:
+        return data
 
 
 def parse_transfer(transfer):
-    path = transfer.find('path').text or ''
-    block_count = int(transfer.find('block_count').text)
-    block_received = int(transfer.find('block_received').text)
-    complete = transfer.find('complete').text == 'yes'
+    path = get_text(transfer, 'path') or ''
+    block_count = int(get_text(transfer, 'block_count') or 0)
+    block_received = int(get_text(transfer, 'block_received') or 0)
+    complete = get_text(transfer, 'complete') == 'yes'
     if complete:
         percentage = 100
     else:
         percentage = block_received * 100 / (block_count or 1)
     return dict(path=path,
                 filename=os.path.basename(path),
-                hash=transfer.find('hash').text,
+                hash=get_text(transfer, 'hash'),
                 block_count=block_count,
                 block_received=block_received,
                 percentage=percentage,
                 complete=complete)
 
 
-def get_transfers():
-    """ Get information about the file ONDD is currently processing """
-    payload = xml_get_path('/transfers')
-    try:
-        root = send(payload)
-    except ET.ParseError:
-        return []
+class ONDDClient(object):
 
-    if root is None:
-        return []
+    def __init__(self, socket_path):
+        self.socket_path = socket_path
 
-    return [parse_transfer(transfer) for stream in root.find('streams')
-            for transfer in stream.find('transfers')]
+    def ping(self):
+        """ Check if ondd endpoint is active."""
+        try:
+            with connect(self.socket_path):
+                return True
+        except (socket.error, socket.timeout):
+            logging.debug('Could not connect to ONDD socket.')
+            return False
 
+    def get_status(self):
+        """ Get ONDD status """
+        payload = xml_get_path('/status')
+        root = self.query(payload)
+        if root is None:
+            return {
+                'has_lock': False,
+                'signal': 0,
+                'snr': 0.0,
+                'streams': []
+            }
 
-def freq_conv(freq, lnb_type):
-    """ Converts transponder frequency to L-band frequency
-
-    The conversion formula requires the LNB type. The type can be either:
-    `KU_BAND` or `'k'` for North America Ku band LNB
-    `C_BAND` or `'c'` for C band LNB
-    `UNIVERSAL` or `'u'` for Universal LNB.
-
-    Example:
-
-        >>> freq_conv(11471, 'u')
-        1721
-
-    """
-    if lnb_type == KU_BAND:
-        # NA Ku band LNB
-        return freq - NA_KU_OFF
-    if lnb_type == C_BAND:
-        # C band LNB
-        return abs(freq - C_OFF)
-    # Universal
-    if freq > UN_HI_SW:
-        return freq - UN_HI_OFF
-    return freq - UN_LO_OFF
-
-
-def needs_tone(freq, lnb_type):
-    """ Whether LNB needs a 22KHz tone
-
-    Always returns ``True`` for C band and North America Ku band LNBs.
-    """
-    if lnb_type in (KU_BAND, C_BAND):
-        return False
-    return freq > UN_HI_SW
-
-
-def get_settings():
-    """ Get ONDD tuner settings """
-    payload = xml_get_path('/settings')
-    root = send(payload)
-    if root is None:
+        tuner = root.find('tuner')
+        streams = root.find('streams')
         return {
-            'frequency': 0,
-            'delivery': '',
-            'modulation': '',
-            'polarization': '',
-            'tone': False,
-            'azimuth': 0
+            'has_lock': get_text(tuner, 'lock') == 'yes',
+            'signal': int(get_text(tuner, 'signal') or 0),
+            'snr': float(get_text(tuner, 'snr', '0.0')),
+            'streams': [
+                {'id': get_text(s, 'ident'),
+                 'bitrate': int(get_text(s, 'bitrate') or 0)}
+                for s in streams
+            ]
         }
 
-    tuner = root.find('tuner')
-    return {
-        'frequency': int(tuner.find('frequency').text),
-        'delivery': tuner.find('delivery').text,
-        'modulation': tuner.find('modulation').text,
-        'polarization': v2pol(tuner.find('voltage').text),
-        'tone': tuner.find('tone').text == 'yes',
-        'azimuth': int(tuner.find('azimuth').text or 0),
-    }
+    def get_file_list(self):
+        """ Get ONDD file download list """
+        payload = xml_get_path('/signaling/')
+        root = self.query(payload)
+
+        if root is None:
+            return []
+
+        streams = root.find('streams')
+        if streams is not None:
+            out = []
+            for s in streams:
+                files = s.find('files')
+                for f in files:
+                    out.append({
+                        'path': get_text(f, 'path'),
+                        'size': int(get_text(f, 'size') or 0)
+                    })
+            return out
+        else:
+            return []
+
+    def get_transfers(self):
+        """ Get information about the file ONDD is currently processing """
+        payload = xml_get_path('/transfers')
+        root = self.query(payload)
+
+        if root is None:
+            return []
+
+        streams = root.find('streams')
+        if streams is not None:
+            return [parse_transfer(transfer) for stream in streams
+                    for transfer in stream.find('transfers')]
+        else:
+            return []
+
+    def get_settings(self):
+        """ Get ONDD tuner settings """
+        payload = xml_get_path('/settings')
+        root = self.query(payload)
+        if root is None:
+            return {
+                'frequency': 0,
+                'delivery': '',
+                'modulation': '',
+                'polarization': '',
+                'tone': False,
+                'azimuth': 0
+            }
+
+        tuner = root.find('tuner')
+        return {
+            'frequency': int(get_text(tuner, 'frequency') or 0),
+            'delivery': get_text(tuner, 'delivery'),
+            'modulation': get_text(tuner, 'modulation'),
+            'polarization': v2pol(get_text(tuner, 'voltage')),
+            'tone': get_text(tuner, 'tone') == 'yes',
+            'azimuth': int(get_text(tuner, 'azimuth') or 0),
+        }
+
+    def set_settings(self, frequency, symbolrate, delivery='dvb-s',
+                     modulation='qpsk', tone=True, voltage=13, azimuth=0):
+        tone = 'yes' if tone else 'no'
+        payload = xml_put_path('/settings', kw2xml(**locals()))
+        resp = self.query(payload)
+        if resp is not None:
+            logging.error('Bad response while setting ONDD settings.')
+            resp_code = ONDD_BAD_RESPONSE_CODE
+        else:
+            resp_code = resp.get('code')
+        return resp_code
 
 
-def set_settings(frequency, symbolrate, delivery='dvb-s', modulation='qpsk',
-                 tone=True, voltage=13, azimuth=0):
-    tone = yesno(tone)
-    payload = xml_put_path('/settings', kw2xml(**locals()))
-    resp = send(payload)
-    if resp is None:
-        logging.error('Bad response while setting ONDD settings.')
-        return ONDD_BAD_RESPONSE_CODE
+    def query(self, payload):
+        data = send(self.socket_path, payload)
+        if data:
+            return self._parse(data)
+        else:
+            return None
 
-    resp_code = resp.get('code')
-    return resp_code
+    def _parse(self, data):
+        """
+        Parse incoming XML into Etree object
+
+        :param data:    XML string
+        :returns:       root node object
+        """
+        try:
+            return ET.fromstring(data.encode('utf8'))
+        except ET.ParseError:
+            return None
