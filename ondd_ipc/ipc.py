@@ -232,12 +232,10 @@ class ONDDClient(object):
         tone = 'yes' if tone else 'no'
         payload = xml_put_path('/settings', kw2xml(**locals()))
         resp = self.query(payload)
-        if resp is not None:
+        if resp is None:
             logging.error('Bad response while setting ONDD settings.')
-            resp_code = ONDD_BAD_RESPONSE_CODE
-        else:
-            resp_code = resp.get('code')
-        return resp_code
+            return ONDD_BAD_RESPONSE_CODE
+        return resp.get('code')
 
     def get_events(self):
         """Get ONDD events """
