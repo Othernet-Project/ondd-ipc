@@ -229,8 +229,14 @@ class ONDDClient(object):
 
     def set_settings(self, frequency, symbolrate, delivery='dvb-s',
                      modulation='qpsk', tone=True, voltage=13, azimuth=0):
-        tone = 'yes' if tone else 'no'
-        payload = xml_put_path('/settings', kw2xml(**locals()))
+        settings = dict(tone='yes' if tone else 'no',
+                        frequency=frequency,
+                        symbolrate=symbolrate,
+                        delivery=delivery,
+                        modulation=modulation,
+                        voltage=voltage,
+                        azimuth=azimuth)
+        payload = xml_put_path('/settings', kw2xml(**settings))
         resp = self.query(payload)
         if resp is None:
             logging.error('Bad response while setting ONDD settings.')
