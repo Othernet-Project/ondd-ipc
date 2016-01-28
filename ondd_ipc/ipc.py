@@ -243,6 +243,22 @@ class ONDDClient(object):
             return ONDD_BAD_RESPONSE_CODE
         return resp.get('code')
 
+    def set_output_path(self, path):
+        payload = xml_put_path('/output', kw2xml(path=path))
+        resp = self.query(payload)
+        if resp is None:
+            logging.error('Bad response while setting output path.')
+            return ONDD_BAD_RESPONSE_CODE
+        return resp.get('code')
+
+    def get_output_path(self, path):
+        payload = xml_get_path('/output')
+        resp = self.query(payload)
+        if resp is None:
+            logging.error('Bad response while getting output path.')
+            return None
+        return resp.get('path')
+
     def get_events(self):
         """Get ONDD events """
         payload = xml_get_path('/events')
