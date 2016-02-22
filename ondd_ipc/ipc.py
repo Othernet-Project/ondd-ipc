@@ -188,6 +188,16 @@ class ONDDClient(object):
         else:
             return []
 
+    def get_cache_storage(self):
+        """ Get ONDD cache storage status """
+        payload = xml_get_path('/cache-storage')
+        root = self.query(payload)
+        if root is None:
+            return {'free': 0}
+
+        cache = root.find('cache')
+        return {'free': int(get_text(cache, 'free') or 0)}
+
     def get_transfers(self):
         """ Get information about the file ONDD is currently processing """
         payload = xml_get_path('/transfers')
