@@ -78,7 +78,18 @@ def read(sock, buffsize=2048):
     while idata and b'\0' not in idata:
         idata = sock.recv(buffsize)
         data += idata
-    return data[:-1].decode(IN_ENCODING)
+    if data[-1] == '\0':
+        data = data[:-1]
+    return data.decode(IN_ENCODING)
+
+
+def null_terminate(s):
+    """
+    Ensures the string is NULL-byte-terminated
+    """
+    if s[-1] == '\0':
+        return s
+    return s + '\0'
 
 
 def send(socket_path, payload):
@@ -90,14 +101,11 @@ def send(socket_path, payload):
     supplied payload isn't terminated by NULL byte, one will automatically be
     appended to the end.
 
-    :socket_path:       the UNIX socket to connect to
+    :param socket_path: the UNIX socket to connect to
     :param payload:     the XML payload to send down the pipe
     :returns:           response data
     """
-    if not payload[-1] == '\0':
-        payload += '\0'
-
-    payload = payload.encode(OUT_ENCODING)
+    payload = null_terminate(payload).encode(OUT_ENCODING)
 
     try:
         with connect(socket_path) as sock:
