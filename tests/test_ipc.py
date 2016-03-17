@@ -13,6 +13,7 @@ from ondd_ipc import ipc as mod
 
 MOD = mod.__name__
 
+
 class FauxExc(Exception):
     """
     We use a custom exception where we don't want the tests to be mixed up with
