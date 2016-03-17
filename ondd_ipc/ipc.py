@@ -149,6 +149,25 @@ class ONDDClient(object):
             logging.debug('Could not connect to ONDD socket.')
             return False
 
+    def parse(self, data):
+        """
+        Parse incoming XML into Etree object
+
+        :param data:    XML string
+        :returns:       root node object
+        """
+        try:
+            return ET.fromstring(data.encode('utf8'))
+        except ET.ParseError:
+            return None
+
+    def query(self, payload):
+        data = send(self.socket_path, payload)
+        if data:
+            return self.parse(data)
+        else:
+            return None
+
     def get_status(self):
         """ Get ONDD status """
         payload = xml_get_path('/status')
@@ -290,22 +309,3 @@ class ONDDClient(object):
             return [xml2dict(e) for e in events]
         else:
             return []
-
-    def query(self, payload):
-        data = send(self.socket_path, payload)
-        if data:
-            return self._parse(data)
-        else:
-            return None
-
-    def _parse(self, data):
-        """
-        Parse incoming XML into Etree object
-
-        :param data:    XML string
-        :returns:       root node object
-        """
-        try:
-            return ET.fromstring(data.encode('utf8'))
-        except ET.ParseError:
-            return None

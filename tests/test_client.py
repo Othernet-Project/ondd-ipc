@@ -39,3 +39,24 @@ def test_ping_failure(connect, mock_socket, client):
     connect.side_effect = FakeExc
     ret = client.ping()
     assert ret is False
+
+
+@mock.patch.object(mod.ONDDClient, 'parse')
+@mock.patch(MOD + '.send')
+def test_query(send, parse, client):
+    """ Given payload, sends it to socket and parses response """
+    ret = client.query('foo')
+    send.assert_called_once_with(client.socket_path, 'foo')
+    parse.assert_called_once_with(send.return_value)
+    assert ret == parse.return_value
+
+
+@mock.patch.object(mod.ONDDClient, 'parse')
+@mock.patch(MOD + '.send')
+def test_query_no_data(send, parse, client):
+    """ Given send returns no value, returns None """
+    send.return_value = None
+    ret = client.query('foo')
+    send.assert_called_once_with(client.socket_path, 'foo')
+    assert parse.call_count == 0
+    assert ret is None
