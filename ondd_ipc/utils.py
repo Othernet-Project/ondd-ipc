@@ -1,4 +1,5 @@
-from .consts import *
+import consts
+
 
 def kw2xml(**kwargs):
     """ Convert any keyword parameters to XML
@@ -51,16 +52,16 @@ def freq_conv(freq, lnb_type):
         1721
 
     """
-    if lnb_type == KU_BAND:
+    if lnb_type == consts.KU_BAND:
         # NA Ku band LNB
-        return freq - NA_KU_OFF
-    if lnb_type == C_BAND:
+        return freq - consts.NA_KU_OFF
+    if lnb_type == consts.C_BAND:
         # C band LNB
-        return abs(freq - C_OFF)
+        return abs(freq - consts.C_OFF)
     # Universal
-    if freq > UN_HI_SW:
-        return freq - UN_HI_OFF
-    return freq - UN_LO_OFF
+    if freq > consts.UN_HI_SW:
+        return freq - consts.UN_HI_OFF
+    return freq - consts.UN_LO_OFF
 
 
 def needs_tone(freq, lnb_type):
@@ -68,6 +69,6 @@ def needs_tone(freq, lnb_type):
 
     Always returns ``True`` for C band and North America Ku band LNBs.
     """
-    if lnb_type in (KU_BAND, C_BAND):
+    if lnb_type in (consts.KU_BAND, consts.C_BAND):
         return False
-    return freq > UN_HI_SW
+    return freq > consts.UN_HI_SW
