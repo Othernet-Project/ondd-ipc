@@ -41,6 +41,19 @@ def test_ping_failure(connect, mock_socket, client):
     assert ret is False
 
 
+def test_parse(client):
+    """ Given XML string, returns ElementTree object """
+    xml = '<response><foo>bar</foo></response>'
+    data = client.parse(xml)
+    assert data.tag == 'response'
+    assert data.find('foo').text == 'bar'
+
+
+def test_parse_invalid_xml(client):
+    data = client.parse('')
+    assert data is None
+
+
 @mock.patch.object(mod.ONDDClient, 'parse')
 @mock.patch(MOD + '.send')
 def test_query(send, parse, client):

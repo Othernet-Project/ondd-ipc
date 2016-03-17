@@ -149,7 +149,8 @@ class ONDDClient(object):
             logging.debug('Could not connect to ONDD socket.')
             return False
 
-    def parse(self, data):
+    @staticmethod
+    def parse(data):
         """
         Parse incoming XML into Etree object
 
