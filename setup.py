@@ -14,14 +14,12 @@ VERSION = pkg.__version__
 setup(
     name='ondd-ipc',
     version=VERSION,
-    license='BSD',
+    license='GPLv3',
+    author='Outernet Inc',
+    author_email='apps@outernet.is',
+    url='https://github.com/Outernet-Project/ondd-ipc',
     packages=[pkg.__name__],
-    include_package_data=True,
     long_description=read('README.rst'),
-    include_requires=[
-        'bottle',
-        'bottle-utils-html'
-    ],
     classifiers=[
         'Development Status :: 1 - Pre Alpha',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
