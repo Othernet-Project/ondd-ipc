@@ -11,10 +11,13 @@ file that comes with the source code, or http://www.gnu.org/licenses/gpl.txt.
 from __future__ import unicode_literals
 
 import os
+import json
 import socket
 import logging
 import xml.etree.ElementTree as ET
 from contextlib import contextmanager
+
+from bottle import request
 
 from .utils import v2pol, kw2xml, xml2dict
 
@@ -310,3 +313,32 @@ class ONDDClient(object):
             return [xml2dict(e) for e in events]
         else:
             return []
+
+
+class sdr100Client(ONDDClient):
+    def get_settings(self):
+        with open(request.app.config['sdr.settings_file'], 'w') as input_file:
+            return json.load(input_file)
+
+    def set_settings(self, settings, **kwargs):
+        # Write the raw settings so they may be retrieved easily later
+        with open(request.app.config['sdr.settings_file'], 'w') as output_file:
+            json.dump(settings, output_file)
+        # Create the text used by sdr100 as an argument string
+        settings_text = str(
+            'DAEMON_ARGS="'
+            '-f {frequency} -u {uncertainty} -r {symbol_rate} -s {sample_rate} '
+            '-b {rf_filter}'
+            '"'
+        ).format(**settings)
+        if settings['descrambler']:
+            settings_text += ' -w'
+        # Write the argument string
+        with open(request.app.config['sdr.daemon_args_file'], 'w') as out:
+            out.write(settings_text)
+
+    def restart_service(self):
+        # TODO: make sure this isn't looping endlessly
+        request.app.supervisor.exts.tasks.schedule(
+            os.system, args=(request.app.config['sdr.restart_command'],),
+            delay=5)
