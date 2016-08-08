@@ -178,6 +178,15 @@ class ONDDClient(object):
                 'has_lock': False,
                 'signal': 0,
                 'snr': 0.0,
+                'freq': 0.0,
+                'freq_offset': 0.0,
+                'set_rs': 0,
+                'rssi': 0.0,
+                'ser': 0.0,
+                'crc_ok': 0,
+                'crc_err': 0,
+                'alg_pk_mn': 0.0,
+                'state': 0,
                 'streams': []
             }
 
@@ -187,6 +196,15 @@ class ONDDClient(object):
             'has_lock': get_text(tuner, 'lock') == 'yes',
             'signal': int(get_text(tuner, 'signal') or 0),
             'snr': float(get_text(tuner, 'snr', '0.0')),
+            'freq': float(get_text(tuner, 'freq', '0.0')),
+            'freq_offset': float(get_text(tuner, 'freq_offset', '0.0')),
+            'set_rs': int(get_text(tuner, 'set_rs') or 0),
+            'rssi': float(get_text(tuner, 'rssi', '0.0')),
+            'ser': float(get_text(tuner, 'ser', '0.0')),
+            'crc_ok': int(get_text(tuner, 'crc_ok') or 0),
+            'crc_err': int(get_text(tuner, 'crc_err') or 0),
+            'alg_pk_mn': float(get_text(tuner, 'alg_pk_mn', '0.0')),
+            'state': int(get_text(tuner, 'state') or 0),
             'streams': [
                 {'id': get_text(s, 'ident'),
                  'bitrate': int(get_text(s, 'bitrate') or 0)}
